@@ -1,4 +1,5 @@
 import base64
+import binascii
 import hashlib
 import hmac
 import secrets
@@ -31,3 +32,7 @@ def verify_password(password: str, stored_password_hash: str) -> bool:
     except (ValueError, TypeError, binascii.Error):
         return False
     return hmac.compare_digest(actual_hash, expected_hash)
+
+
+def hash_access_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

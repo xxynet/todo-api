@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.auth import get_current_user
 from app.api.categories import can_edit_category, can_view_category, get_category_or_404, require_category_editor
-from app.api.users import get_current_user, is_admin
+from app.api.users import is_admin
 from app.database import get_db
 from app.models import CategoryPermission, Tag, Todo, User
 from app.schemas import TodoCreate, TodoRead, TodoUpdate, validate_schedule

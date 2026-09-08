@@ -65,6 +65,18 @@ class UserRead(BaseModel):
     updated_at: datetime
 
 
+class LoginRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AccessTokenRead(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_at: datetime
+    user: UserRead
+
+
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 

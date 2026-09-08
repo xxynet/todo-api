@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.users import get_current_user, get_user_or_404, is_admin, require_admin
+from app.api.auth import get_current_user
+from app.api.users import get_user_or_404, is_admin, require_admin
 from app.database import get_db
 from app.models import Category, CategoryPermission, User
 from app.schemas import (

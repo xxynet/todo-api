@@ -1,0 +1,48 @@
+from fastapi.testclient import TestClient
+
+from tests.conftest import TEST_ADMIN_PASSWORD
+
+
+def test_login_bearer_access_and_logout(client: TestClient) -> None:
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"user_id": "admin", "password": TEST_ADMIN_PASSWORD},
+    )
+    assert login_response.status_code == 200
+    payload = login_response.json()
+    assert payload["token_type"] == "bearer"
+    assert payload["access_token"]
+    assert payload["expires_at"]
+    assert payload["user"]["id"] == "admin"
+    assert payload["user"]["role"] == "admin"
+
+    headers = {"Authorization": f"Bearer {payload['access_token']}"}
+    profile_response = client.get("/api/v1/users/me", headers=headers)
+    assert profile_response.status_code == 200
+    assert profile_response.json()["id"] == "admin"
+
+    assert client.post("/api/v1/auth/logout", headers=headers).status_code == 204
+    assert client.get("/api/v1/users/me", headers=headers).status_code == 401
+
+
+def test_login_rejects_invalid_credentials(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"user_id": "admin", "password": "incorrect-password"},
+    )
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Basic, Bearer"
+
+
+def test_cors_preflight_allows_frontend_authorization_header(client: TestClient) -> None:
+    response = client.options(
+        "/api/v1/todos",
+        headers={
+            "Origin": "https://frontend.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "Authorization" in response.headers["access-control-allow-headers"]
