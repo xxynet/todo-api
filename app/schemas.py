@@ -31,6 +31,38 @@ def normalize_tag_names(tag_names: list[str]) -> list[str]:
     return normalized_names
 
 
+def normalize_required_text(value: str, field_name: str) -> str:
+    normalized_value = value.strip()
+    if not normalized_value:
+        raise ValueError(f"{field_name} must not be blank")
+    return normalized_value
+
+
+class UserCreate(BaseModel):
+    id: str = Field(min_length=1, max_length=50, pattern=r"^[A-Za-z0-9_.-]+$")
+    nickname: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("id")
+    @classmethod
+    def normalize_id(cls, value: str) -> str:
+        return normalize_required_text(value, "id")
+
+    @field_validator("nickname")
+    @classmethod
+    def normalize_nickname(cls, value: str) -> str:
+        return normalize_required_text(value, "nickname")
+
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    nickname: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
@@ -49,6 +81,7 @@ class CategoryRead(BaseModel):
 
 
 class TodoCreate(BaseModel):
+    user_id: str = Field(min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
     completed: bool = False
@@ -56,6 +89,11 @@ class TodoCreate(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=20)
     scheduled_start_at: datetime | None = None
     scheduled_end_at: datetime | None = None
+
+    @field_validator("user_id")
+    @classmethod
+    def normalize_user_id(cls, value: str) -> str:
+        return normalize_required_text(value, "user_id")
 
     @field_validator("tags")
     @classmethod
@@ -89,6 +127,7 @@ class TodoRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_id: str
     title: str
     description: str | None
     completed: bool

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.database import Base, get_db
+from app.database import Base, get_db, initialize_database
 from app.main import app
 
 
@@ -22,8 +22,8 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
     def enable_foreign_keys(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
-    Base.metadata.create_all(bind=test_engine)
     test_session = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
+    initialize_database(test_engine, test_session)
 
     def override_get_db() -> Generator[Session, None, None]:
         with test_session() as session:

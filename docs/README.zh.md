@@ -2,7 +2,7 @@
 
 # TODO API
 
-一个使用 FastAPI、SQLAlchemy 和 SQLite 构建的简洁、可扩展 TODO 后端。
+一个使用 FastAPI、SQLAlchemy 和 SQLite 构建的可扩展、多用户 TODO 后端。
 
 [English](../README.md) | 简体中文
 
@@ -10,16 +10,17 @@
 
 ## 功能特性
 
+- 支持可配置开关的用户注册
+- 自动创建带一次性随机密码的默认 `admin` 用户
+- 每个 TODO 必须归属一个用户
 - RESTful TODO 和分类增删改查接口
 - 可选分类关联与外键完整性保障
 - 支持自由命名标签并自动复用
 - TODO 支持时间点和时间段安排
 - FastAPI 请求校验与自动生成的 OpenAPI 文档
-- SQLAlchemy 2.x ORM
 - 自动启用 SQLite WAL 模式
 - 启用外键约束、`synchronous=NORMAL` 和 30 秒 busy timeout
-- 支持按完成状态、分类筛选和基于 offset 的分页
-- 支持环境变量配置
+- 支持按完成状态、用户、分类筛选和基于 offset 的分页
 - 包含 API 回归测试
 
 ## 环境要求
@@ -29,31 +30,21 @@
 
 ## 快速开始
 
-安装依赖：
-
 ```powershell
 uv sync
-```
-
-创建本地配置文件：
-
-```powershell
 Copy-Item .env.example .env
-```
-
-启动开发服务器：
-
-```powershell
 uv run python -m app
 ```
 
 服务默认监听 `http://127.0.0.1:8000`。
 
 - Swagger UI：`http://127.0.0.1:8000/docs`
-- ReDoc：`http://127.0.0.1:8000/redoc`
 - 健康检查：`GET /api/v1/health`
+- 用户接口：`/api/v1/users`
 - TODO 接口：`/api/v1/todos`
 - 分类接口：`/api/v1/categories`
+
+新数据库首次启动时，服务会将默认 `admin` 用户生成的随机密码写到标准错误输出。请立即安全保存：明文密码不会入库，也不会再次显示。
 
 ## 配置
 
@@ -64,14 +55,17 @@ uv run python -m app
 | `APP_NAME` | `TODO API` | 显示在自动生成 API 文档中的应用名称 |
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy 数据库连接地址 |
 | `PORT` | `8000` | 使用 `uv run python -m app` 启动时监听的本地端口 |
+| `ALLOW_REGISTRATION` | `true` | 是否允许 `POST /api/v1/users/register` 注册新用户 |
 
-可以复制 `.env.example` 作为本地配置的起点。SQLite 数据库默认保存在 `data/data.db`。启动前修改 `.env` 中的 `PORT`，即可使用其他端口。
+SQLite 数据库默认保存在 `data/data.db`。设置 `ALLOW_REGISTRATION=false` 可禁止新的注册，但不会影响已有用户。
 
 ## API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | 检查服务是否正常运行 |
+| `POST` | `/api/v1/users/register` | 注册用户（需要开启注册） |
+| `GET` | `/api/v1/users/{user_id}` | 获取用户公开信息 |
 | `POST` | `/api/v1/categories` | 创建分类 |
 | `GET` | `/api/v1/categories` | 获取分类列表 |
 | `GET` | `/api/v1/categories/{id}` | 获取单个分类 |
@@ -83,32 +77,13 @@ uv run python -m app
 | `PATCH` | `/api/v1/todos/{id}` | 部分更新 TODO |
 | `DELETE` | `/api/v1/todos/{id}` | 删除 TODO |
 
-TODO 列表接口支持以下查询参数：
+注册时需输入 `id`、`nickname` 和密码。密码只以 PBKDF2-SHA256 哈希形式保存，接口不会返回密码。
 
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| `completed` | boolean | 按完成状态筛选 |
-| `category_id` | integer | 按分类筛选 |
-| `offset` | integer | 跳过的记录数，默认为 `0` |
-| `limit` | integer | 最大返回记录数，默认为 `50`，最大为 `100` |
-
-## 分类、标签与时间安排
-
-TODO 的 `category_id` 可为空；传入时必须指向已存在的分类。删除分类后，其关联 TODO 的 `category_id` 会自动清空。
-
-可选的 `tags` 字段接收标签名称数组，例如 `"tags": ["后端", "紧急"]`。无需预先创建标签：名称会去除首尾空白，同一请求中的重复名称会被忽略，未知名称会自动创建。`PATCH` 传入 `"tags": []` 可清空该 TODO 的所有标签；响应中的标签名称按字母顺序返回。
-
-时间使用 ISO 8601 格式（推荐 UTC）：
-
-- 仅传入 `scheduled_start_at` 表示时间点。
-- 同时传入 `scheduled_start_at` 和 `scheduled_end_at` 表示时间段。
-- 不允许只传 `scheduled_end_at`，结束时间也不能早于开始时间。
-- 两个字段都省略时，TODO 处于未排期状态。
-
-请求体示例：
+每个新 TODO 都必须包含已存在用户的 ID：
 
 ```json
 {
+  "user_id": "caleb",
   "title": "规划迭代",
   "description": "整理下一迭代的待办事项",
   "category_id": 1,
@@ -119,26 +94,28 @@ TODO 的 `category_id` 可为空；传入时必须指向已存在的分类。删
 }
 ```
 
+TODO 列表可通过可选的 `user_id`、`completed`、`category_id`、`offset` 和 `limit` 查询参数筛选和分页。TODO 归属用户不能通过更新 TODO 的接口修改。
+
+当前分类和标签由所有用户共享。尚未实现认证和授权；`user_id` 先用于建立数据归属关系，供后续认证层使用。
+
 ## 项目结构
 
 ```text
 app/
 ├── api/
 │   ├── categories.py  # 分类接口
-│   └── todos.py       # TODO 接口
-├── __main__.py        # 支持配置的 Uvicorn 启动入口
+│   ├── todos.py       # TODO 接口
+│   └── users.py       # 注册和用户查询接口
 ├── config.py          # 环境配置
-├── database.py        # SQLAlchemy 引擎和 SQLite WAL 配置
-├── main.py            # FastAPI 应用入口
+├── database.py        # SQLAlchemy 引擎、初始化和 SQLite WAL 配置
 ├── models.py          # SQLAlchemy 模型
-└── schemas.py         # 请求与响应数据模型
+├── schemas.py         # 请求和响应数据模型
+└── security.py        # 密码哈希辅助函数
 tests/                 # API 测试
 data/                  # SQLite 数据库文件
 ```
 
 ## 测试
-
-运行测试：
 
 ```powershell
 uv run pytest

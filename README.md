@@ -2,7 +2,7 @@
 
 # TODO API
 
-A simple and extensible TODO backend built with FastAPI, SQLAlchemy, and SQLite.
+An extensible multi-user TODO backend built with FastAPI, SQLAlchemy, and SQLite.
 
 English | [简体中文](docs/README.zh.md)
 
@@ -10,16 +10,17 @@ English | [简体中文](docs/README.zh.md)
 
 ## Features
 
+- User registration with configurable availability
+- A default `admin` user created with a one-time random password
+- Every TODO belongs to a user
 - RESTful TODO and category CRUD endpoints
 - Optional category assignment with foreign-key integrity
 - Optional freely named tags with automatic reuse
 - Scheduled time points and time ranges for TODO items
 - FastAPI request validation and automatic OpenAPI documentation
-- SQLAlchemy 2.x ORM
 - SQLite with WAL mode enabled automatically
 - Foreign key enforcement, `synchronous=NORMAL`, and a 30-second busy timeout
-- Completion/category filtering and offset-based pagination
-- Environment-based configuration
+- Completion, user, and category filtering with offset-based pagination
 - API regression tests
 
 ## Requirements
@@ -29,31 +30,21 @@ English | [简体中文](docs/README.zh.md)
 
 ## Quick Start
 
-Install the dependencies:
-
 ```powershell
 uv sync
-```
-
-Create a local configuration file:
-
-```powershell
 Copy-Item .env.example .env
-```
-
-Start the development server:
-
-```powershell
 uv run python -m app
 ```
 
 The server listens on `http://127.0.0.1:8000` by default.
 
 - Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
 - Health check: `GET /api/v1/health`
+- User endpoints: `/api/v1/users`
 - TODO endpoints: `/api/v1/todos`
 - Category endpoints: `/api/v1/categories`
+
+On the first startup of a new database, the server writes the generated password for the default `admin` user to standard error. Store it securely: it is not persisted in plaintext and is not shown again.
 
 ## Configuration
 
@@ -64,14 +55,17 @@ Configuration is loaded from environment variables or a local `.env` file.
 | `APP_NAME` | `TODO API` | Application name shown in the generated API documentation |
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy database connection URL |
 | `PORT` | `8000` | Local port used when starting with `uv run python -m app` |
+| `ALLOW_REGISTRATION` | `true` | Whether `POST /api/v1/users/register` accepts new users |
 
-The `.env.example` file can be used as a starting point. The SQLite database is stored at `data/data.db` by default. Change `PORT` in `.env` before starting the server to use another port.
+The SQLite database is stored at `data/data.db` by default. Set `ALLOW_REGISTRATION=false` to prevent new registrations while keeping existing users available.
 
 ## API
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Check whether the service is running |
+| `POST` | `/api/v1/users/register` | Register a user when registration is enabled |
+| `GET` | `/api/v1/users/{user_id}` | Get public user information |
 | `POST` | `/api/v1/categories` | Create a category |
 | `GET` | `/api/v1/categories` | List categories |
 | `GET` | `/api/v1/categories/{id}` | Get a category |
@@ -83,32 +77,13 @@ The `.env.example` file can be used as a starting point. The SQLite database is 
 | `PATCH` | `/api/v1/todos/{id}` | Partially update a TODO item |
 | `DELETE` | `/api/v1/todos/{id}` | Delete a TODO item |
 
-The TODO list endpoint accepts the following query parameters:
+Register a user with an input `id`, `nickname`, and password. Passwords are saved only as PBKDF2-SHA256 hashes and are never returned by the API.
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `completed` | boolean | Filter by completion status |
-| `category_id` | integer | Filter by category |
-| `offset` | integer | Number of records to skip; defaults to `0` |
-| `limit` | integer | Maximum number of records to return; defaults to `50` and cannot exceed `100` |
-
-## Categories, Tags, and Scheduling
-
-A TODO's `category_id` is optional. When it is provided, it must reference an existing category. Deleting a category automatically clears `category_id` on its associated TODO items.
-
-Use the optional `tags` field to send an array of tag names, for example `"tags": ["backend", "urgent"]`. Tags do not need to be created in advance: names are trimmed, duplicate names in the same request are ignored, and unknown names are created automatically. A `PATCH` request with `"tags": []` clears all tags from that TODO. Responses return tag names in alphabetical order.
-
-Use ISO 8601 timestamps for scheduling (UTC is recommended):
-
-- Provide only `scheduled_start_at` for a time point.
-- Provide both `scheduled_start_at` and `scheduled_end_at` for a time range.
-- `scheduled_end_at` cannot be supplied without a start time or be earlier than the start time.
-- Omit both fields for an unscheduled TODO.
-
-Example request body:
+Every new TODO must include the ID of an existing user:
 
 ```json
 {
+  "user_id": "caleb",
   "title": "Plan sprint",
   "description": "Prepare the next sprint backlog",
   "category_id": 1,
@@ -119,26 +94,28 @@ Example request body:
 }
 ```
 
+Use the optional `user_id`, `completed`, `category_id`, `offset`, and `limit` query parameters to filter and paginate the TODO list. TODO ownership is immutable through the TODO update endpoint.
+
+Categories and tags are currently shared across users. Authentication and authorization are not included yet; `user_id` establishes the data ownership relationship for the next authentication layer.
+
 ## Project Structure
 
 ```text
 app/
 ├── api/
 │   ├── categories.py  # Category endpoints
-│   └── todos.py       # TODO endpoints
-├── __main__.py        # Config-aware Uvicorn launcher
+│   ├── todos.py       # TODO endpoints
+│   └── users.py       # Registration and user lookup endpoints
 ├── config.py          # Environment configuration
-├── database.py        # SQLAlchemy engine and SQLite WAL settings
-├── main.py            # FastAPI application entry point
+├── database.py        # SQLAlchemy engine, initialization, and SQLite WAL settings
 ├── models.py          # SQLAlchemy models
-└── schemas.py         # Request and response schemas
+├── schemas.py         # Request and response schemas
+└── security.py        # Password hashing helpers
 tests/                 # API tests
 data/                  # SQLite database files
 ```
 
 ## Testing
-
-Run the test suite with:
 
 ```powershell
 uv run pytest
