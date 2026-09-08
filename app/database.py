@@ -61,7 +61,7 @@ def initialize_database(
             return None
 
         password = secrets.token_urlsafe(18)
-        session.add(User(id="admin", nickname="Administrator", password_hash=hash_password(password)))
+        session.add(User(id="admin", nickname="Administrator", role="admin", password_hash=hash_password(password)))
         session.commit()
         return password
 

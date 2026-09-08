@@ -10,19 +10,14 @@ English | [简体中文](docs/README.zh.md)
 
 ## Features
 
-- User registration with configurable availability
-- A default `admin` user created with a one-time random password
-- HTTP Basic authentication and per-user TODO access isolation
-- Every TODO belongs to a user
-- RESTful TODO and category CRUD endpoints
-- Optional category assignment with foreign-key integrity
-- Optional freely named tags with automatic reuse
-- Scheduled time points and time ranges for TODO items
-- FastAPI request validation and automatic OpenAPI documentation
-- SQLite with WAL mode enabled automatically
-- Foreign key enforcement, `synchronous=NORMAL`, and a 30-second busy timeout
-- Completion, user, and category filtering with offset-based pagination
-- API regression tests
+- HTTP Basic authentication with PBKDF2-SHA256 password hashes
+- System-level user roles: `admin` and `user`
+- Category collaboration permissions: `view` and `edit`
+- A default `admin` account with a one-time random password
+- Every TODO belongs to a user; uncategorized TODOs remain private
+- Categories, tags, scheduled time points, and time ranges
+- SQLite with WAL mode, foreign-key enforcement, and a 30-second busy timeout
+- OpenAPI documentation and API regression tests
 
 ## Requirements
 
@@ -45,7 +40,7 @@ The server listens on `http://127.0.0.1:8000` by default.
 - TODO endpoints: `/api/v1/todos`
 - Category endpoints: `/api/v1/categories`
 
-On the first startup of a new database, the server writes the generated password for the default `admin` user to standard error. Store it securely: it is not persisted in plaintext and is not shown again.
+On the first startup of a new database, the generated password for the default `admin` account is written once to standard error. Store it securely: it is never persisted in plaintext and is not shown again.
 
 ## Configuration
 
@@ -56,64 +51,86 @@ Configuration is loaded from environment variables or a local `.env` file.
 | `APP_NAME` | `TODO API` | Application name shown in the generated API documentation |
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy database connection URL |
 | `PORT` | `8000` | Local port used when starting with `uv run python -m app` |
-| `ALLOW_REGISTRATION` | `true` | Whether `POST /api/v1/users/register` accepts new users |
+| `ALLOW_REGISTRATION` | `true` | Whether new users may register |
 
-The SQLite database is stored at `data/data.db` by default. Set `ALLOW_REGISTRATION=false` to prevent new registrations while keeping existing users available.
+Set `ALLOW_REGISTRATION=false` to prevent new registrations while keeping existing users available.
+
+## Authentication and Roles
+
+All category and TODO endpoints require HTTP Basic authentication. Use the user ID as the username and the registered password as the password. `POST /api/v1/users/register` remains public when registration is enabled.
+
+Newly registered users always receive the `user` role. The initial account is created with the `admin` role. Administrative checks use this stored `users.role` value, not a special user ID.
+
+## Category Collaboration
+
+Only an `admin` can create, rename, delete, or assign permissions for categories. An admin grants access with:
+
+```http
+PUT /api/v1/categories/{category_id}/permissions/{user_id}
+Authorization: Basic <credentials>
+Content-Type: application/json
+
+{"role":"edit"}
+```
+
+Available category permission roles:
+
+| Role | TODO access in that category |
+| --- | --- |
+| `view` | List and read shared TODOs |
+| `edit` | List, read, create, update, and delete shared TODOs |
+
+The TODO owner can always work with their own TODO. A TODO without a category is visible only to its owner. Revoking a category permission immediately removes that user's access to the category's shared TODOs.
 
 ## API
 
-| Method | Path | Description |
+| Method | Path | Access |
 | --- | --- | --- |
-| `GET` | `/api/v1/health` | Check whether the service is running |
-| `POST` | `/api/v1/users/register` | Register a user when registration is enabled |
-| `GET` | `/api/v1/users/me` | Get the authenticated user profile |
-| `GET` | `/api/v1/users/{user_id}` | Get public user information |
-| `POST` | `/api/v1/categories` | Create a category |
-| `GET` | `/api/v1/categories` | List categories |
-| `GET` | `/api/v1/categories/{id}` | Get a category |
-| `PATCH` | `/api/v1/categories/{id}` | Rename a category |
-| `DELETE` | `/api/v1/categories/{id}` | Delete a category |
-| `POST` | `/api/v1/todos` | Create a TODO item |
-| `GET` | `/api/v1/todos` | List TODO items |
-| `GET` | `/api/v1/todos/{id}` | Get a TODO item |
-| `PATCH` | `/api/v1/todos/{id}` | Partially update a TODO item |
-| `DELETE` | `/api/v1/todos/{id}` | Delete a TODO item |
+| `GET` | `/api/v1/health` | Public |
+| `POST` | `/api/v1/users/register` | Public when registration is enabled |
+| `GET` | `/api/v1/users/me` | Authenticated user |
+| `GET` | `/api/v1/users/{user_id}` | Public user profile |
+| `POST` | `/api/v1/categories` | Admin |
+| `GET` | `/api/v1/categories` | Admin or permitted user |
+| `GET` | `/api/v1/categories/{id}` | Admin or permitted user |
+| `PATCH` | `/api/v1/categories/{id}` | Admin |
+| `DELETE` | `/api/v1/categories/{id}` | Admin |
+| `GET` | `/api/v1/categories/{id}/permissions` | Admin |
+| `PUT` | `/api/v1/categories/{id}/permissions/{user_id}` | Admin |
+| `DELETE` | `/api/v1/categories/{id}/permissions/{user_id}` | Admin |
+| `POST` | `/api/v1/todos` | Owner or category `edit` permission |
+| `GET` | `/api/v1/todos` | Owner plus accessible shared TODOs |
+| `GET` | `/api/v1/todos/{id}` | Owner or category `view`/`edit` permission |
+| `PATCH` | `/api/v1/todos/{id}` | Owner or category `edit` permission |
+| `DELETE` | `/api/v1/todos/{id}` | Owner or category `edit` permission |
 
-Register a user with an input `id`, `nickname`, and password. Passwords are saved only as PBKDF2-SHA256 hashes and are never returned by the API. Use HTTP Basic authentication (`user_id` as the username and the password as the password) for every TODO endpoint and `GET /api/v1/users/me`.
-
-Every new TODO must include the ID of an existing user:
+A new TODO must include the authenticated user's ID:
 
 ```json
 {
   "user_id": "caleb",
   "title": "Plan sprint",
-  "description": "Prepare the next sprint backlog",
   "category_id": 1,
   "tags": ["planning", "backend"],
-  "scheduled_start_at": "2026-09-08T09:00:00Z",
-  "scheduled_end_at": "2026-09-08T10:30:00Z",
-  "completed": false
+  "scheduled_start_at": "2026-09-08T09:00:00Z"
 }
 ```
-
-TODO list results are always limited to the authenticated user. Use `completed`, `category_id`, `offset`, and `limit` to filter and paginate them. A TODO can only be created when its `user_id` matches the authenticated user, and cannot be read, changed, or deleted by another user.
-
-Categories and tags are currently shared across users.
 
 ## Project Structure
 
 ```text
 app/
 ├── api/
-│   ├── categories.py  # Category endpoints
-│   ├── todos.py       # TODO endpoints
-│   └── users.py       # Registration and user lookup endpoints
+│   ├── categories.py  # Category management and collaboration permission endpoints
+│   ├── todos.py       # TODO endpoints and collaboration access checks
+│   └── users.py       # Registration and HTTP Basic authentication
+├── __main__.py        # Config-aware Uvicorn launcher
 ├── config.py          # Environment configuration
-├── database.py        # SQLAlchemy engine, initialization, and SQLite WAL settings
-├── models.py          # SQLAlchemy models
+├── database.py        # Database initialization and SQLite WAL settings
+├── models.py          # Users, categories, permissions, TODOs, and tags
 ├── schemas.py         # Request and response schemas
 └── security.py        # Password hashing helpers
-tests/                 # API tests
+tests/                 # API regression tests
 data/                  # SQLite database files
 ```
 

@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database import Base, get_db, initialize_database
 from app.main import app
+from app.models import User
+from app.security import hash_password
+
+
+TEST_ADMIN_PASSWORD = "admin-password-123"
 
 
 @pytest.fixture
@@ -24,6 +29,11 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
 
     test_session = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
     initialize_database(test_engine, test_session)
+    with test_session() as session:
+        admin = session.get(User, "admin")
+        assert admin is not None
+        admin.password_hash = hash_password(TEST_ADMIN_PASSWORD)
+        session.commit()
 
     def override_get_db() -> Generator[Session, None, None]:
         with test_session() as session:

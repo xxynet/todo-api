@@ -14,6 +14,16 @@ from app.security import hash_password, verify_password
 router = APIRouter(prefix="/users", tags=["users"])
 DbSession = Annotated[Session, Depends(get_db)]
 security = HTTPBasic()
+ADMIN_ROLE = "admin"
+
+
+def is_admin(user: User) -> bool:
+    return user.role == ADMIN_ROLE
+
+
+def require_admin(user: User) -> None:
+    if not is_admin(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator permission is required")
 
 
 def get_user_or_404(user_id: str, db: Session) -> User:
@@ -39,7 +49,7 @@ def register_user(payload: UserCreate, db: DbSession) -> User:
     if not get_settings().allow_registration:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User registration is disabled")
 
-    user = User(id=payload.id, nickname=payload.nickname, password_hash=hash_password(payload.password))
+    user = User(id=payload.id, nickname=payload.nickname, role="user", password_hash=hash_password(payload.password))
     db.add(user)
     try:
         db.commit()

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table, Text, func
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, String, Table, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,9 +16,11 @@ todo_tags = Table(
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("role IN ('admin', 'user')", name="ck_users_role"),)
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user", index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -26,6 +28,9 @@ class User(Base):
     )
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="user", passive_deletes=True)
+    category_permissions: Mapped[list["CategoryPermission"]] = relationship(
+        back_populates="user", passive_deletes=True
+    )
 
 
 class Category(Base):
@@ -39,6 +44,22 @@ class Category(Base):
     )
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="category", passive_deletes=True)
+    permissions: Mapped[list["CategoryPermission"]] = relationship(
+        back_populates="category", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class CategoryPermission(Base):
+    __tablename__ = "category_permissions"
+    __table_args__ = (CheckConstraint("role IN ('view', 'edit')", name="ck_category_permissions_role"),)
+
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    category: Mapped[Category] = relationship(back_populates="permissions")
+    user: Mapped[User] = relationship(back_populates="category_permissions")
 
 
 class Tag(Base):

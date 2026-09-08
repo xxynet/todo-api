@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -59,6 +60,7 @@ class UserRead(BaseModel):
 
     id: str
     nickname: str
+    role: Literal["admin", "user"]
     created_at: datetime
     updated_at: datetime
 
@@ -78,6 +80,19 @@ class CategoryRead(BaseModel):
     name: str
     created_at: datetime
     updated_at: datetime
+
+
+class CategoryPermissionUpsert(BaseModel):
+    role: Literal["view", "edit"]
+
+
+class CategoryPermissionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    category_id: int
+    user_id: str
+    role: Literal["view", "edit"]
+    created_at: datetime
 
 
 class TodoCreate(BaseModel):

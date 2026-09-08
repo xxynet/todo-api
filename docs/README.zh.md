@@ -10,19 +10,14 @@
 
 ## 功能特性
 
-- 支持可配置开关的用户注册
-- 自动创建带一次性随机密码的默认 `admin` 用户
-- 支持 HTTP Basic 认证和按用户隔离 TODO 访问
-- 每个 TODO 必须归属一个用户
-- RESTful TODO 和分类增删改查接口
-- 可选分类关联与外键完整性保障
-- 支持自由命名标签并自动复用
-- TODO 支持时间点和时间段安排
-- FastAPI 请求校验与自动生成的 OpenAPI 文档
-- 自动启用 SQLite WAL 模式
-- 启用外键约束、`synchronous=NORMAL` 和 30 秒 busy timeout
-- 支持按完成状态、用户、分类筛选和基于 offset 的分页
-- 包含 API 回归测试
+- 使用 HTTP Basic 认证与 PBKDF2-SHA256 密码哈希
+- 系统级用户角色：`admin` 和 `user`
+- 分类协作权限：`view` 和 `edit`
+- 自动创建带一次性随机密码的默认 `admin` 账户
+- 每个 TODO 都归属一个用户；未分类 TODO 保持私有
+- 支持分类、标签、时间点和时间段
+- 自动启用 SQLite WAL、外键约束和 30 秒 busy timeout
+- 自动 OpenAPI 文档与 API 回归测试
 
 ## 环境要求
 
@@ -45,7 +40,7 @@ uv run python -m app
 - TODO 接口：`/api/v1/todos`
 - 分类接口：`/api/v1/categories`
 
-新数据库首次启动时，服务会将默认 `admin` 用户生成的随机密码写到标准错误输出。请立即安全保存：明文密码不会入库，也不会再次显示。
+新数据库首次启动时，服务会将默认 `admin` 账户生成的随机密码写到标准错误输出。请立即安全保存：明文密码不会入库，也不会再次显示。
 
 ## 配置
 
@@ -56,64 +51,86 @@ uv run python -m app
 | `APP_NAME` | `TODO API` | 显示在自动生成 API 文档中的应用名称 |
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy 数据库连接地址 |
 | `PORT` | `8000` | 使用 `uv run python -m app` 启动时监听的本地端口 |
-| `ALLOW_REGISTRATION` | `true` | 是否允许 `POST /api/v1/users/register` 注册新用户 |
+| `ALLOW_REGISTRATION` | `true` | 是否允许新用户注册 |
 
-SQLite 数据库默认保存在 `data/data.db`。设置 `ALLOW_REGISTRATION=false` 可禁止新的注册，但不会影响已有用户。
+设置 `ALLOW_REGISTRATION=false` 可禁止新的注册，但不会影响已有用户。
+
+## 认证与角色
+
+所有分类和 TODO 接口均需要 HTTP Basic 认证：用户名为用户 ID，密码为注册密码。`POST /api/v1/users/register` 在注册开启时保持公开。
+
+新注册用户固定为 `user` 角色；初始账户为 `admin` 角色。管理员校验基于数据库 `users.role` 字段，而不是根据特定用户 ID 判断。
+
+## 分类协作
+
+只有 `admin` 可以创建、重命名、删除分类，以及给用户分配分类权限。管理员使用以下接口授权：
+
+```http
+PUT /api/v1/categories/{category_id}/permissions/{user_id}
+Authorization: Basic <credentials>
+Content-Type: application/json
+
+{"role":"edit"}
+```
+
+分类权限角色如下：
+
+| 角色 | 该分类中的 TODO 权限 |
+| --- | --- |
+| `view` | 查看分类和共享 TODO 列表、读取共享 TODO |
+| `edit` | 查看、创建、更新和删除共享 TODO |
+
+TODO 的原始创建者始终可以操作自己的 TODO。没有分类的 TODO 仅其创建者可见。撤销分类权限后，该用户会立即失去该分类中共享 TODO 的访问权限。
 
 ## API
 
-| 方法 | 路径 | 说明 |
+| 方法 | 路径 | 访问权限 |
 | --- | --- | --- |
-| `GET` | `/api/v1/health` | 检查服务是否正常运行 |
-| `POST` | `/api/v1/users/register` | 注册用户（需要开启注册） |
-| `GET` | `/api/v1/users/me` | 获取当前认证用户的信息 |
-| `GET` | `/api/v1/users/{user_id}` | 获取用户公开信息 |
-| `POST` | `/api/v1/categories` | 创建分类 |
-| `GET` | `/api/v1/categories` | 获取分类列表 |
-| `GET` | `/api/v1/categories/{id}` | 获取单个分类 |
-| `PATCH` | `/api/v1/categories/{id}` | 修改分类名称 |
-| `DELETE` | `/api/v1/categories/{id}` | 删除分类 |
-| `POST` | `/api/v1/todos` | 创建 TODO |
-| `GET` | `/api/v1/todos` | 获取 TODO 列表 |
-| `GET` | `/api/v1/todos/{id}` | 获取单个 TODO |
-| `PATCH` | `/api/v1/todos/{id}` | 部分更新 TODO |
-| `DELETE` | `/api/v1/todos/{id}` | 删除 TODO |
+| `GET` | `/api/v1/health` | 公开 |
+| `POST` | `/api/v1/users/register` | 开启注册时公开 |
+| `GET` | `/api/v1/users/me` | 已认证用户 |
+| `GET` | `/api/v1/users/{user_id}` | 用户公开资料 |
+| `POST` | `/api/v1/categories` | 管理员 |
+| `GET` | `/api/v1/categories` | 管理员或获授权用户 |
+| `GET` | `/api/v1/categories/{id}` | 管理员或获授权用户 |
+| `PATCH` | `/api/v1/categories/{id}` | 管理员 |
+| `DELETE` | `/api/v1/categories/{id}` | 管理员 |
+| `GET` | `/api/v1/categories/{id}/permissions` | 管理员 |
+| `PUT` | `/api/v1/categories/{id}/permissions/{user_id}` | 管理员 |
+| `DELETE` | `/api/v1/categories/{id}/permissions/{user_id}` | 管理员 |
+| `POST` | `/api/v1/todos` | 所有者或拥有分类 `edit` 权限的用户 |
+| `GET` | `/api/v1/todos` | 所有者加上可访问的共享 TODO |
+| `GET` | `/api/v1/todos/{id}` | 所有者或拥有分类 `view`/`edit` 权限的用户 |
+| `PATCH` | `/api/v1/todos/{id}` | 所有者或拥有分类 `edit` 权限的用户 |
+| `DELETE` | `/api/v1/todos/{id}` | 所有者或拥有分类 `edit` 权限的用户 |
 
-注册时需输入 `id`、`nickname` 和密码。密码只以 PBKDF2-SHA256 哈希形式保存，接口不会返回密码。所有 TODO 接口以及 `GET /api/v1/users/me` 均使用 HTTP Basic 认证：用户名为 `user_id`，密码为注册密码。
-
-每个新 TODO 都必须包含已存在用户的 ID：
+创建 TODO 时必须传入当前认证用户的 ID：
 
 ```json
 {
   "user_id": "caleb",
   "title": "规划迭代",
-  "description": "整理下一迭代的待办事项",
   "category_id": 1,
   "tags": ["规划", "后端"],
-  "scheduled_start_at": "2026-09-08T09:00:00Z",
-  "scheduled_end_at": "2026-09-08T10:30:00Z",
-  "completed": false
+  "scheduled_start_at": "2026-09-08T09:00:00Z"
 }
 ```
-
-TODO 列表始终只返回当前认证用户的数据，可通过 `completed`、`category_id`、`offset` 和 `limit` 筛选和分页。创建时的 `user_id` 必须与当前认证用户一致；其他用户无法读取、修改或删除该 TODO。
-
-当前分类和标签由所有用户共享。
 
 ## 项目结构
 
 ```text
 app/
 ├── api/
-│   ├── categories.py  # 分类接口
-│   ├── todos.py       # TODO 接口
-│   └── users.py       # 注册和用户查询接口
+│   ├── categories.py  # 分类管理和协作权限接口
+│   ├── todos.py       # TODO 接口和协作访问校验
+│   └── users.py       # 注册和 HTTP Basic 认证
+├── __main__.py        # 支持配置的 Uvicorn 启动入口
 ├── config.py          # 环境配置
-├── database.py        # SQLAlchemy 引擎、初始化和 SQLite WAL 配置
-├── models.py          # SQLAlchemy 模型
+├── database.py        # 数据库初始化和 SQLite WAL 配置
+├── models.py          # 用户、分类、权限、TODO 和标签模型
 ├── schemas.py         # 请求和响应数据模型
 └── security.py        # 密码哈希辅助函数
-tests/                 # API 测试
+tests/                 # API 回归测试
 data/                  # SQLite 数据库文件
 ```
 
