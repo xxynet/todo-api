@@ -1,9 +1,17 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+todo_tags = Table(
+    "todo_tags",
+    Base.metadata,
+    Column("todo_id", ForeignKey("todos.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Category(Base):
@@ -17,6 +25,16 @@ class Category(Base):
     )
 
     todos: Mapped[list["Todo"]] = relationship(back_populates="category", passive_deletes=True)
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    todos: Mapped[list["Todo"]] = relationship(secondary=todo_tags, back_populates="tags")
 
 
 class Todo(Base):
@@ -37,3 +55,8 @@ class Todo(Base):
     )
 
     category: Mapped[Category | None] = relationship(back_populates="todos")
+    tags: Mapped[list[Tag]] = relationship(secondary=todo_tags, back_populates="todos", order_by="Tag.name")
+
+    @property
+    def tag_names(self) -> list[str]:
+        return sorted(tag.name for tag in self.tags)

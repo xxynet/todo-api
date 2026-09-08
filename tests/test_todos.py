@@ -25,7 +25,7 @@ def test_category_crud(client: TestClient) -> None:
     assert [item["name"] for item in list_response.json()] == ["Office"]
 
 
-def test_todo_crud_with_category_and_time_range(client: TestClient) -> None:
+def test_todo_crud_with_category_time_range_and_tags(client: TestClient) -> None:
     category = client.post("/api/v1/categories", json={"name": "Learning"}).json()
     create_response = client.post(
         "/api/v1/todos",
@@ -33,6 +33,7 @@ def test_todo_crud_with_category_and_time_range(client: TestClient) -> None:
             "title": "Learn FastAPI",
             "description": "Build a TODO API",
             "category_id": category["id"],
+            "tags": ["fastapi", " backend ", "FastAPI"],
             "scheduled_start_at": "2026-09-08T09:00:00Z",
             "scheduled_end_at": "2026-09-08T10:30:00Z",
         },
@@ -41,19 +42,25 @@ def test_todo_crud_with_category_and_time_range(client: TestClient) -> None:
     created = create_response.json()
     assert created["id"] == 1
     assert created["category"]["name"] == "Learning"
+    assert created["tags"] == ["backend", "fastapi"]
     assert created["scheduled_end_at"] == "2026-09-08T10:30:00Z"
 
     get_response = client.get("/api/v1/todos/1")
     assert get_response.status_code == 200
     assert get_response.json()["description"] == "Build a TODO API"
 
-    update_response = client.patch("/api/v1/todos/1", json={"completed": True})
+    update_response = client.patch("/api/v1/todos/1", json={"completed": True, "tags": ["api", "python"]})
     assert update_response.status_code == 200
     assert update_response.json()["completed"] is True
+    assert update_response.json()["tags"] == ["api", "python"]
 
     list_response = client.get("/api/v1/todos", params={"completed": True, "category_id": category["id"]})
     assert list_response.status_code == 200
     assert [todo["id"] for todo in list_response.json()] == [1]
+
+    clear_tags_response = client.patch("/api/v1/todos/1", json={"tags": []})
+    assert clear_tags_response.status_code == 200
+    assert clear_tags_response.json()["tags"] == []
 
     delete_category_response = client.delete(f"/api/v1/categories/{category['id']}")
     assert delete_category_response.status_code == 204
@@ -86,6 +93,7 @@ def test_time_point_and_time_validation(client: TestClient) -> None:
 def test_create_rejects_invalid_values(client: TestClient) -> None:
     assert client.post("/api/v1/todos", json={"title": ""}).status_code == 422
     assert client.post("/api/v1/todos", json={"title": "Unknown", "category_id": 99}).status_code == 404
+    assert client.post("/api/v1/todos", json={"title": "Bad tag", "tags": ["   "]}).status_code == 422
 
 
 def test_update_rejects_null_required_fields(client: TestClient) -> None:

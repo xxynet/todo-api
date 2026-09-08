@@ -12,6 +12,7 @@
 
 - RESTful TODO 和分类增删改查接口
 - 可选分类关联与外键完整性保障
+- 支持自由命名标签并自动复用
 - TODO 支持时间点和时间段安排
 - FastAPI 请求校验与自动生成的 OpenAPI 文档
 - SQLAlchemy 2.x ORM
@@ -91,9 +92,11 @@ TODO 列表接口支持以下查询参数：
 | `offset` | integer | 跳过的记录数，默认为 `0` |
 | `limit` | integer | 最大返回记录数，默认为 `50`，最大为 `100` |
 
-## 分类与时间安排
+## 分类、标签与时间安排
 
 TODO 的 `category_id` 可为空；传入时必须指向已存在的分类。删除分类后，其关联 TODO 的 `category_id` 会自动清空。
+
+可选的 `tags` 字段接收标签名称数组，例如 `"tags": ["后端", "紧急"]`。无需预先创建标签：名称会去除首尾空白，同一请求中的重复名称会被忽略，未知名称会自动创建。`PATCH` 传入 `"tags": []` 可清空该 TODO 的所有标签；响应中的标签名称按字母顺序返回。
 
 时间使用 ISO 8601 格式（推荐 UTC）：
 
@@ -109,6 +112,7 @@ TODO 的 `category_id` 可为空；传入时必须指向已存在的分类。删
   "title": "规划迭代",
   "description": "整理下一迭代的待办事项",
   "category_id": 1,
+  "tags": ["规划", "后端"],
   "scheduled_start_at": "2026-09-08T09:00:00Z",
   "scheduled_end_at": "2026-09-08T10:30:00Z",
   "completed": false
@@ -139,4 +143,3 @@ data/                  # SQLite 数据库文件
 ```powershell
 uv run pytest
 ```
-

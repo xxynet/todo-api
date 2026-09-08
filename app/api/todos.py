@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.categories import get_category_or_404
 from app.database import get_db
-from app.models import Todo
+from app.models import Tag, Todo
 from app.schemas import TodoCreate, TodoRead, TodoUpdate, validate_schedule
 
 router = APIRouter(prefix="/todos", tags=["todos"])
@@ -14,11 +14,32 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 def get_todo_or_404(todo_id: int, db: Session) -> Todo:
-    statement = select(Todo).options(selectinload(Todo.category)).where(Todo.id == todo_id)
+    statement = (
+        select(Todo)
+        .options(selectinload(Todo.category), selectinload(Todo.tags))
+        .where(Todo.id == todo_id)
+    )
     todo = db.scalar(statement)
     if todo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
     return todo
+
+
+def get_or_create_tags(tag_names: list[str], db: Session) -> list[Tag]:
+    if not tag_names:
+        return []
+
+    existing_tags = {
+        tag.name: tag for tag in db.scalars(select(Tag).where(Tag.name.in_(tag_names)))
+    }
+    tags: list[Tag] = []
+    for tag_name in tag_names:
+        tag = existing_tags.get(tag_name)
+        if tag is None:
+            tag = Tag(name=tag_name)
+            db.add(tag)
+        tags.append(tag)
+    return tags
 
 
 def validate_category(category_id: int | None, db: Session) -> None:
@@ -36,7 +57,9 @@ def validate_todo_schedule(start_at, end_at) -> None:
 @router.post("", response_model=TodoRead, status_code=status.HTTP_201_CREATED)
 def create_todo(payload: TodoCreate, db: DbSession) -> Todo:
     validate_category(payload.category_id, db)
-    todo = Todo(**payload.model_dump())
+    todo_data = payload.model_dump()
+    tag_names = todo_data.pop("tags")
+    todo = Todo(**todo_data, tags=get_or_create_tags(tag_names, db))
     db.add(todo)
     db.commit()
     return get_todo_or_404(todo.id, db)
@@ -50,7 +73,7 @@ def list_todos(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[Todo]:
-    statement = select(Todo).options(selectinload(Todo.category)).order_by(
+    statement = select(Todo).options(selectinload(Todo.category), selectinload(Todo.tags)).order_by(
         Todo.created_at.desc(), Todo.id.desc()
     ).offset(offset).limit(limit)
     if completed is not None:
@@ -75,6 +98,8 @@ def update_todo(todo_id: int, payload: TodoUpdate, db: DbSession) -> Todo:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Completed cannot be null")
     if "category_id" in changes:
         validate_category(changes["category_id"], db)
+    if "tags" in changes:
+        todo.tags = get_or_create_tags(changes.pop("tags"), db)
 
     start_at = changes.get("scheduled_start_at", todo.scheduled_start_at)
     end_at = changes.get("scheduled_end_at", todo.scheduled_end_at)

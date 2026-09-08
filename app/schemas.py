@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def validate_schedule(start_at: datetime | None, end_at: datetime | None) -> None:
@@ -13,6 +13,22 @@ def validate_schedule(start_at: datetime | None, end_at: datetime | None) -> Non
             raise ValueError("scheduled_start_at and scheduled_end_at must use compatible timezones") from error
         if is_invalid_range:
             raise ValueError("scheduled_end_at must not be earlier than scheduled_start_at")
+
+
+def normalize_tag_names(tag_names: list[str]) -> list[str]:
+    normalized_names: list[str] = []
+    seen_names: set[str] = set()
+    for tag_name in tag_names:
+        normalized_name = tag_name.strip()
+        if not normalized_name:
+            raise ValueError("tag names must not be blank")
+        if len(normalized_name) > 50:
+            raise ValueError("tag names must not exceed 50 characters")
+        deduplication_key = normalized_name.casefold()
+        if deduplication_key not in seen_names:
+            normalized_names.append(normalized_name)
+            seen_names.add(deduplication_key)
+    return normalized_names
 
 
 class CategoryCreate(BaseModel):
@@ -37,8 +53,14 @@ class TodoCreate(BaseModel):
     description: str | None = None
     completed: bool = False
     category_id: int | None = None
+    tags: list[str] = Field(default_factory=list, max_length=20)
     scheduled_start_at: datetime | None = None
     scheduled_end_at: datetime | None = None
+
+    @field_validator("tags")
+    @classmethod
+    def normalize_tags(cls, tag_names: list[str]) -> list[str]:
+        return normalize_tag_names(tag_names)
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "TodoCreate":
@@ -51,8 +73,16 @@ class TodoUpdate(BaseModel):
     description: str | None = None
     completed: bool | None = None
     category_id: int | None = None
+    tags: list[str] | None = Field(default=None, max_length=20)
     scheduled_start_at: datetime | None = None
     scheduled_end_at: datetime | None = None
+
+    @field_validator("tags")
+    @classmethod
+    def normalize_tags(cls, tag_names: list[str] | None) -> list[str] | None:
+        if tag_names is None:
+            return None
+        return normalize_tag_names(tag_names)
 
 
 class TodoRead(BaseModel):
@@ -64,6 +94,7 @@ class TodoRead(BaseModel):
     completed: bool
     category_id: int | None
     category: CategoryRead | None
+    tags: list[str] = Field(validation_alias="tag_names")
     scheduled_start_at: datetime | None
     scheduled_end_at: datetime | None
     created_at: datetime

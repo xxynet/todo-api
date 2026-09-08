@@ -12,6 +12,7 @@ English | [简体中文](docs/README.zh.md)
 
 - RESTful TODO and category CRUD endpoints
 - Optional category assignment with foreign-key integrity
+- Optional freely named tags with automatic reuse
 - Scheduled time points and time ranges for TODO items
 - FastAPI request validation and automatic OpenAPI documentation
 - SQLAlchemy 2.x ORM
@@ -91,9 +92,11 @@ The TODO list endpoint accepts the following query parameters:
 | `offset` | integer | Number of records to skip; defaults to `0` |
 | `limit` | integer | Maximum number of records to return; defaults to `50` and cannot exceed `100` |
 
-## Categories and Scheduling
+## Categories, Tags, and Scheduling
 
 A TODO's `category_id` is optional. When it is provided, it must reference an existing category. Deleting a category automatically clears `category_id` on its associated TODO items.
+
+Use the optional `tags` field to send an array of tag names, for example `"tags": ["backend", "urgent"]`. Tags do not need to be created in advance: names are trimmed, duplicate names in the same request are ignored, and unknown names are created automatically. A `PATCH` request with `"tags": []` clears all tags from that TODO. Responses return tag names in alphabetical order.
 
 Use ISO 8601 timestamps for scheduling (UTC is recommended):
 
@@ -109,6 +112,7 @@ Example request body:
   "title": "Plan sprint",
   "description": "Prepare the next sprint backlog",
   "category_id": 1,
+  "tags": ["planning", "backend"],
   "scheduled_start_at": "2026-09-08T09:00:00Z",
   "scheduled_end_at": "2026-09-08T10:30:00Z",
   "completed": false
