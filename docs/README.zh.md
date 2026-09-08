@@ -12,6 +12,7 @@
 
 - 支持可配置开关的用户注册
 - 自动创建带一次性随机密码的默认 `admin` 用户
+- 支持 HTTP Basic 认证和按用户隔离 TODO 访问
 - 每个 TODO 必须归属一个用户
 - RESTful TODO 和分类增删改查接口
 - 可选分类关联与外键完整性保障
@@ -65,6 +66,7 @@ SQLite 数据库默认保存在 `data/data.db`。设置 `ALLOW_REGISTRATION=fals
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | 检查服务是否正常运行 |
 | `POST` | `/api/v1/users/register` | 注册用户（需要开启注册） |
+| `GET` | `/api/v1/users/me` | 获取当前认证用户的信息 |
 | `GET` | `/api/v1/users/{user_id}` | 获取用户公开信息 |
 | `POST` | `/api/v1/categories` | 创建分类 |
 | `GET` | `/api/v1/categories` | 获取分类列表 |
@@ -77,7 +79,7 @@ SQLite 数据库默认保存在 `data/data.db`。设置 `ALLOW_REGISTRATION=fals
 | `PATCH` | `/api/v1/todos/{id}` | 部分更新 TODO |
 | `DELETE` | `/api/v1/todos/{id}` | 删除 TODO |
 
-注册时需输入 `id`、`nickname` 和密码。密码只以 PBKDF2-SHA256 哈希形式保存，接口不会返回密码。
+注册时需输入 `id`、`nickname` 和密码。密码只以 PBKDF2-SHA256 哈希形式保存，接口不会返回密码。所有 TODO 接口以及 `GET /api/v1/users/me` 均使用 HTTP Basic 认证：用户名为 `user_id`，密码为注册密码。
 
 每个新 TODO 都必须包含已存在用户的 ID：
 
@@ -94,9 +96,9 @@ SQLite 数据库默认保存在 `data/data.db`。设置 `ALLOW_REGISTRATION=fals
 }
 ```
 
-TODO 列表可通过可选的 `user_id`、`completed`、`category_id`、`offset` 和 `limit` 查询参数筛选和分页。TODO 归属用户不能通过更新 TODO 的接口修改。
+TODO 列表始终只返回当前认证用户的数据，可通过 `completed`、`category_id`、`offset` 和 `limit` 筛选和分页。创建时的 `user_id` 必须与当前认证用户一致；其他用户无法读取、修改或删除该 TODO。
 
-当前分类和标签由所有用户共享。尚未实现认证和授权；`user_id` 先用于建立数据归属关系，供后续认证层使用。
+当前分类和标签由所有用户共享。
 
 ## 项目结构
 

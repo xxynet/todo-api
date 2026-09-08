@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -8,16 +9,28 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import User
 from app.schemas import UserCreate, UserRead
-from app.security import hash_password
+from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 DbSession = Annotated[Session, Depends(get_db)]
+security = HTTPBasic()
 
 
 def get_user_or_404(user_id: str, db: Session) -> User:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+def get_current_user(credentials: Annotated[HTTPBasicCredentials, Depends(security)], db: DbSession) -> User:
+    user = db.get(User, credentials.username)
+    if user is None or not verify_password(credentials.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect user ID or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
     return user
 
 
@@ -35,6 +48,11 @@ def register_user(payload: UserCreate, db: DbSession) -> User:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this id already exists") from error
     db.refresh(user)
     return user
+
+
+@router.get("/me", response_model=UserRead)
+def get_current_user_profile(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return current_user
 
 
 @router.get("/{user_id}", response_model=UserRead)

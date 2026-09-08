@@ -5,13 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.categories import get_category_or_404
-from app.api.users import get_user_or_404
+from app.api.users import get_current_user
 from app.database import get_db
-from app.models import Tag, Todo
+from app.models import Tag, Todo, User
 from app.schemas import TodoCreate, TodoRead, TodoUpdate, validate_schedule
 
 router = APIRouter(prefix="/todos", tags=["todos"])
 DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 def get_todo_or_404(todo_id: int, db: Session) -> Todo:
@@ -22,6 +23,13 @@ def get_todo_or_404(todo_id: int, db: Session) -> Todo:
     )
     todo = db.scalar(statement)
     if todo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
+    return todo
+
+
+def get_owned_todo_or_404(todo_id: int, current_user: User, db: Session) -> Todo:
+    todo = get_todo_or_404(todo_id, db)
+    if todo.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
     return todo
 
@@ -48,10 +56,6 @@ def validate_category(category_id: int | None, db: Session) -> None:
         get_category_or_404(category_id, db)
 
 
-def validate_user(user_id: str, db: Session) -> None:
-    get_user_or_404(user_id, db)
-
-
 def validate_todo_schedule(start_at, end_at) -> None:
     try:
         validate_schedule(start_at, end_at)
@@ -60,31 +64,33 @@ def validate_todo_schedule(start_at, end_at) -> None:
 
 
 @router.post("", response_model=TodoRead, status_code=status.HTTP_201_CREATED)
-def create_todo(payload: TodoCreate, db: DbSession) -> Todo:
-    validate_user(payload.user_id, db)
+def create_todo(payload: TodoCreate, current_user: CurrentUser, db: DbSession) -> Todo:
+    if payload.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="TODO user_id must match the authenticated user",
+        )
     validate_category(payload.category_id, db)
     todo_data = payload.model_dump()
     tag_names = todo_data.pop("tags")
     todo = Todo(**todo_data, tags=get_or_create_tags(tag_names, db))
     db.add(todo)
     db.commit()
-    return get_todo_or_404(todo.id, db)
+    return get_owned_todo_or_404(todo.id, current_user, db)
 
 
 @router.get("", response_model=list[TodoRead])
 def list_todos(
+    current_user: CurrentUser,
     db: DbSession,
-    user_id: Annotated[str | None, Query()] = None,
     completed: Annotated[bool | None, Query()] = None,
     category_id: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[Todo]:
-    statement = select(Todo).options(selectinload(Todo.category), selectinload(Todo.tags)).order_by(
-        Todo.created_at.desc(), Todo.id.desc()
-    ).offset(offset).limit(limit)
-    if user_id is not None:
-        statement = statement.where(Todo.user_id == user_id)
+    statement = select(Todo).options(selectinload(Todo.category), selectinload(Todo.tags)).where(
+        Todo.user_id == current_user.id
+    ).order_by(Todo.created_at.desc(), Todo.id.desc()).offset(offset).limit(limit)
     if completed is not None:
         statement = statement.where(Todo.completed == completed)
     if category_id is not None:
@@ -93,13 +99,13 @@ def list_todos(
 
 
 @router.get("/{todo_id}", response_model=TodoRead)
-def get_todo(todo_id: int, db: DbSession) -> Todo:
-    return get_todo_or_404(todo_id, db)
+def get_todo(todo_id: int, current_user: CurrentUser, db: DbSession) -> Todo:
+    return get_owned_todo_or_404(todo_id, current_user, db)
 
 
 @router.patch("/{todo_id}", response_model=TodoRead)
-def update_todo(todo_id: int, payload: TodoUpdate, db: DbSession) -> Todo:
-    todo = get_todo_or_404(todo_id, db)
+def update_todo(todo_id: int, payload: TodoUpdate, current_user: CurrentUser, db: DbSession) -> Todo:
+    todo = get_owned_todo_or_404(todo_id, current_user, db)
     changes = payload.model_dump(exclude_unset=True)
     if changes.get("title") is None and "title" in changes:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Title cannot be null")
@@ -118,12 +124,12 @@ def update_todo(todo_id: int, payload: TodoUpdate, db: DbSession) -> Todo:
         setattr(todo, field, value)
 
     db.commit()
-    return get_todo_or_404(todo.id, db)
+    return get_owned_todo_or_404(todo.id, current_user, db)
 
 
 @router.delete("/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_todo(todo_id: int, db: DbSession) -> Response:
-    todo = get_todo_or_404(todo_id, db)
+def delete_todo(todo_id: int, current_user: CurrentUser, db: DbSession) -> Response:
+    todo = get_owned_todo_or_404(todo_id, current_user, db)
     db.delete(todo)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

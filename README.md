@@ -12,6 +12,7 @@ English | [简体中文](docs/README.zh.md)
 
 - User registration with configurable availability
 - A default `admin` user created with a one-time random password
+- HTTP Basic authentication and per-user TODO access isolation
 - Every TODO belongs to a user
 - RESTful TODO and category CRUD endpoints
 - Optional category assignment with foreign-key integrity
@@ -65,6 +66,7 @@ The SQLite database is stored at `data/data.db` by default. Set `ALLOW_REGISTRAT
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Check whether the service is running |
 | `POST` | `/api/v1/users/register` | Register a user when registration is enabled |
+| `GET` | `/api/v1/users/me` | Get the authenticated user profile |
 | `GET` | `/api/v1/users/{user_id}` | Get public user information |
 | `POST` | `/api/v1/categories` | Create a category |
 | `GET` | `/api/v1/categories` | List categories |
@@ -77,7 +79,7 @@ The SQLite database is stored at `data/data.db` by default. Set `ALLOW_REGISTRAT
 | `PATCH` | `/api/v1/todos/{id}` | Partially update a TODO item |
 | `DELETE` | `/api/v1/todos/{id}` | Delete a TODO item |
 
-Register a user with an input `id`, `nickname`, and password. Passwords are saved only as PBKDF2-SHA256 hashes and are never returned by the API.
+Register a user with an input `id`, `nickname`, and password. Passwords are saved only as PBKDF2-SHA256 hashes and are never returned by the API. Use HTTP Basic authentication (`user_id` as the username and the password as the password) for every TODO endpoint and `GET /api/v1/users/me`.
 
 Every new TODO must include the ID of an existing user:
 
@@ -94,9 +96,9 @@ Every new TODO must include the ID of an existing user:
 }
 ```
 
-Use the optional `user_id`, `completed`, `category_id`, `offset`, and `limit` query parameters to filter and paginate the TODO list. TODO ownership is immutable through the TODO update endpoint.
+TODO list results are always limited to the authenticated user. Use `completed`, `category_id`, `offset`, and `limit` to filter and paginate them. A TODO can only be created when its `user_id` matches the authenticated user, and cannot be read, changed, or deleted by another user.
 
-Categories and tags are currently shared across users. Authentication and authorization are not included yet; `user_id` establishes the data ownership relationship for the next authentication layer.
+Categories and tags are currently shared across users.
 
 ## Project Structure
 
