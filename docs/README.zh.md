@@ -10,7 +10,7 @@
 
 ## 功能特性
 
-- 使用 HTTP Basic 认证与 PBKDF2-SHA256 密码哈希
+- 使用 Bearer Token 认证与 PBKDF2-SHA256 密码哈希
 - 系统级用户角色：`admin` 和 `user`
 - 分类协作权限：`view` 和 `edit`
 - 自动创建带一次性随机密码的默认 `admin` 账户
@@ -52,12 +52,24 @@ uv run python -m app
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy 数据库连接地址 |
 | `PORT` | `8000` | 使用 `uv run python -m app` 启动时监听的本地端口 |
 | `ALLOW_REGISTRATION` | `true` | 是否允许新用户注册 |
+| `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer 访问令牌的有效期（分钟） |
 
 设置 `ALLOW_REGISTRATION=false` 可禁止新的注册，但不会影响已有用户。
 
 ## 认证与角色
 
-所有分类和 TODO 接口均需要 HTTP Basic 认证：用户名为用户 ID，密码为注册密码。`POST /api/v1/users/register` 在注册开启时保持公开。
+所有分类和 TODO 接口均需要 Bearer 认证。先通过 `POST /api/v1/auth/login` 获取短期访问令牌，再在每次请求中携带。`POST /api/v1/users/register` 在注册开启时保持公开。
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{"user_id":"caleb","password":"your-password"}
+```
+
+```http
+Authorization: Bearer <access_token>
+```
 
 新注册用户固定为 `user` 角色；初始账户为 `admin` 角色。管理员校验基于数据库 `users.role` 字段，而不是根据特定用户 ID 判断。
 
@@ -67,7 +79,7 @@ uv run python -m app
 
 ```http
 PUT /api/v1/categories/{category_id}/permissions/{user_id}
-Authorization: Basic <credentials>
+Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {"role":"edit"}
@@ -88,6 +100,8 @@ TODO 的原始创建者始终可以操作自己的 TODO。没有分类的 TODO �
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | 公开 |
 | `POST` | `/api/v1/users/register` | 开启注册时公开 |
+| `POST` | `/api/v1/auth/login` | 公开 |
+| `POST` | `/api/v1/auth/logout` | 持有 Bearer Token 的用户 |
 | `GET` | `/api/v1/users/me` | 已认证用户 |
 | `GET` | `/api/v1/users/{user_id}` | 用户公开资料 |
 | `POST` | `/api/v1/categories` | 管理员 |
@@ -123,7 +137,8 @@ app/
 ├── api/
 │   ├── categories.py  # 分类管理和协作权限接口
 │   ├── todos.py       # TODO 接口和协作访问校验
-│   └── users.py       # 注册和 HTTP Basic 认证
+│   ├── auth.py        # Bearer Token 登录、退出和认证
+│   └── users.py       # 注册和用户接口
 ├── __main__.py        # 支持配置的 Uvicorn 启动入口
 ├── config.py          # 环境配置
 ├── database.py        # 数据库初始化和 SQLite WAL 配置

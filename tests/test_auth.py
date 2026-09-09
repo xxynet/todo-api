@@ -31,7 +31,13 @@ def test_login_rejects_invalid_credentials(client: TestClient) -> None:
         json={"user_id": "admin", "password": "incorrect-password"},
     )
     assert response.status_code == 401
-    assert response.headers["www-authenticate"] == "Basic, Bearer"
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_basic_authentication_is_rejected(client: TestClient) -> None:
+    response = client.get("/api/v1/users/me", auth=("admin", TEST_ADMIN_PASSWORD))
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
 
 
 def test_cors_preflight_allows_frontend_authorization_header(client: TestClient) -> None:

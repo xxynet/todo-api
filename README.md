@@ -10,7 +10,7 @@ English | [简体中文](docs/README.zh.md)
 
 ## Features
 
-- HTTP Basic authentication with PBKDF2-SHA256 password hashes
+- Bearer-token authentication with PBKDF2-SHA256 password hashes
 - System-level user roles: `admin` and `user`
 - Category collaboration permissions: `view` and `edit`
 - A default `admin` account with a one-time random password
@@ -52,12 +52,24 @@ Configuration is loaded from environment variables or a local `.env` file.
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy database connection URL |
 | `PORT` | `8000` | Local port used when starting with `uv run python -m app` |
 | `ALLOW_REGISTRATION` | `true` | Whether new users may register |
+| `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer access-token lifetime in minutes |
 
 Set `ALLOW_REGISTRATION=false` to prevent new registrations while keeping existing users available.
 
 ## Authentication and Roles
 
-All category and TODO endpoints require HTTP Basic authentication. Use the user ID as the username and the registered password as the password. `POST /api/v1/users/register` remains public when registration is enabled.
+All category and TODO endpoints require Bearer authentication. Obtain a short-lived access token through `POST /api/v1/auth/login`, then send it with each request. `POST /api/v1/users/register` remains public when registration is enabled.
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{"user_id":"caleb","password":"your-password"}
+```
+
+```http
+Authorization: Bearer <access_token>
+```
 
 Newly registered users always receive the `user` role. The initial account is created with the `admin` role. Administrative checks use this stored `users.role` value, not a special user ID.
 
@@ -67,7 +79,7 @@ Only an `admin` can create, rename, delete, or assign permissions for categories
 
 ```http
 PUT /api/v1/categories/{category_id}/permissions/{user_id}
-Authorization: Basic <credentials>
+Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {"role":"edit"}
@@ -88,6 +100,8 @@ The TODO owner can always work with their own TODO. A TODO without a category is
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Public |
 | `POST` | `/api/v1/users/register` | Public when registration is enabled |
+| `POST` | `/api/v1/auth/login` | Public |
+| `POST` | `/api/v1/auth/logout` | Bearer token holder |
 | `GET` | `/api/v1/users/me` | Authenticated user |
 | `GET` | `/api/v1/users/{user_id}` | Public user profile |
 | `POST` | `/api/v1/categories` | Admin |
@@ -123,7 +137,8 @@ app/
 ├── api/
 │   ├── categories.py  # Category management and collaboration permission endpoints
 │   ├── todos.py       # TODO endpoints and collaboration access checks
-│   └── users.py       # Registration and HTTP Basic authentication
+│   ├── auth.py        # Bearer-token login, logout, and authentication
+│   └── users.py       # Registration and user endpoints
 ├── __main__.py        # Config-aware Uvicorn launcher
 ├── config.py          # Environment configuration
 ├── database.py        # Database initialization and SQLite WAL settings

@@ -4,7 +4,7 @@ import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBasic, HTTPBasicCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,6 @@ from app.security import hash_access_token, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 DbSession = Annotated[Session, Depends(get_db)]
-basic_security = HTTPBasic(auto_error=False)
 bearer_security = HTTPBearer(auto_error=False)
 
 
@@ -25,7 +24,7 @@ def authentication_error(detail: str = "Authentication is required") -> HTTPExce
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail=detail,
-        headers={"WWW-Authenticate": "Basic, Bearer"},
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 
@@ -47,20 +46,10 @@ def get_access_token(credentials: HTTPAuthorizationCredentials | None, db: Sessi
 
 
 def get_current_user(
-    basic_credentials: Annotated[HTTPBasicCredentials | None, Depends(basic_security)],
     bearer_credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_security)],
     db: DbSession,
 ) -> User:
-    if bearer_credentials is not None:
-        return get_access_token(bearer_credentials, db).user
-
-    if basic_credentials is not None:
-        user = authenticate_user(basic_credentials.username, basic_credentials.password, db)
-        if user is not None:
-            return user
-        raise authentication_error("Incorrect user ID or password")
-
-    raise authentication_error()
+    return get_access_token(bearer_credentials, db).user
 
 
 @router.post("/login", response_model=AccessTokenRead)
