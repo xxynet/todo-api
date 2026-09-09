@@ -6,10 +6,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.database import Base, get_db, initialize_database
+from app.database import get_db, initialize_database
 from app.main import app
 from app.models import User
-from app.security import hash_password
 
 
 TEST_ADMIN_PASSWORD = "admin-password-123"
@@ -28,12 +27,9 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
     test_session = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
-    initialize_database(test_engine, test_session)
+    initialize_database(test_engine)
     with test_session() as session:
-        admin = session.get(User, "admin")
-        assert admin is not None
-        admin.password_hash = hash_password(TEST_ADMIN_PASSWORD)
-        session.commit()
+        assert session.get(User, "admin") is None
 
     def override_get_db() -> Generator[Session, None, None]:
         with test_session() as session:
@@ -41,6 +37,18 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
+        assert test_client.get("/api/v1/setup/status").json() == {"admin_provisioned": False}
+        response = test_client.post(
+            "/api/v1/users/bootstrap-admin",
+            json={
+                "id": "admin",
+                "nickname": "Administrator",
+                "password": TEST_ADMIN_PASSWORD,
+                "role": "admin",
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["role"] == "admin"
         yield test_client
     app.dependency_overrides.clear()
     test_engine.dispose()

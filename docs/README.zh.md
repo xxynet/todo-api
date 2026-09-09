@@ -13,7 +13,7 @@
 - 使用 Bearer Token 认证与 PBKDF2-SHA256 密码哈希
 - 系统级用户角色：`admin` 和 `user`
 - 分类协作权限：`view` 和 `edit`
-- 自动创建带一次性随机密码的默认 `admin` 账户
+- 通过一次性接口初始化首个 `admin` 账户
 - 每个 TODO 都归属一个用户；未分类 TODO 保持私有
 - 支持分类、标签、时间点和时间段
 - 自动启用 SQLite WAL、外键约束和 30 秒 busy timeout
@@ -40,7 +40,18 @@ uv run python -m app
 - TODO 接口：`/api/v1/todos`
 - 分类接口：`/api/v1/categories`
 
-新数据库首次启动时，服务会将默认 `admin` 账户生成的随机密码写到标准错误输出。请立即安全保存：明文密码不会入库，也不会再次显示。
+新部署首次启动后，应在服务对公网开放前调用一次性初始化接口来创建管理员：
+
+```http
+POST /api/v1/users/bootstrap-admin
+Content-Type: application/json
+
+{"id":"admin","nickname":"Administrator","password":"choose-a-strong-password","role":"admin"}
+```
+
+调用成功后，该接口会永久关闭；后续调用返回 `403`。已有管理员账户的旧部署也会被视为已完成初始化。
+
+可调用 `GET /api/v1/setup/status` 判断是否已完成管理员初始化。该接口只返回 `{"admin_provisioned": true|false}`，不会泄露任何账户资料。
 
 ## 配置
 
@@ -71,7 +82,7 @@ Content-Type: application/json
 Authorization: Bearer <access_token>
 ```
 
-新注册用户固定为 `user` 角色；初始账户为 `admin` 角色。管理员校验基于数据库 `users.role` 字段，而不是根据特定用户 ID 判断。
+新注册用户固定为 `user` 角色；一次性初始化接口只接受 `role: "admin"`。管理员校验基于数据库 `users.role` 字段，而不是根据特定用户 ID 判断。
 
 ## 分类协作
 
@@ -99,6 +110,8 @@ TODO 的原始创建者始终可以操作自己的 TODO。没有分类的 TODO �
 | 方法 | 路径 | 访问权限 |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | 公开 |
+| `GET` | `/api/v1/setup/status` | 公开的初始化状态，不泄露账户资料 |
+| `POST` | `/api/v1/users/bootstrap-admin` | 公开，仅可在尚未存在管理员时调用一次 |
 | `POST` | `/api/v1/users/register` | 开启注册时公开 |
 | `POST` | `/api/v1/auth/login` | 公开 |
 | `POST` | `/api/v1/auth/logout` | 持有 Bearer Token 的用户 |

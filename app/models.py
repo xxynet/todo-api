@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, String, Table, Text, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Table, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -45,6 +45,15 @@ class AccessToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="access_tokens")
+
+
+class AdminBootstrap(Base):
+    __tablename__ = "admin_bootstrap"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_admin_bootstrap_singleton"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    admin_user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Category(Base):

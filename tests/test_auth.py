@@ -40,6 +40,38 @@ def test_basic_authentication_is_rejected(client: TestClient) -> None:
     assert response.headers["www-authenticate"] == "Bearer"
 
 
+def test_admin_bootstrap_is_closed_after_initial_setup(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/users/bootstrap-admin",
+        json={
+            "id": "another-admin",
+            "nickname": "Another Administrator",
+            "password": TEST_ADMIN_PASSWORD,
+            "role": "admin",
+        },
+    )
+    assert response.status_code == 403
+
+
+def test_admin_bootstrap_rejects_non_admin_role(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/users/bootstrap-admin",
+        json={
+            "id": "not-an-admin",
+            "nickname": "Not an Administrator",
+            "password": TEST_ADMIN_PASSWORD,
+            "role": "user",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_setup_status_reports_admin_provisioning(client: TestClient) -> None:
+    response = client.get("/api/v1/setup/status")
+    assert response.status_code == 200
+    assert response.json() == {"admin_provisioned": True}
+
+
 def test_cors_preflight_allows_frontend_authorization_header(client: TestClient) -> None:
     response = client.options(
         "/api/v1/todos",

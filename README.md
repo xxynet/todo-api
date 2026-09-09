@@ -13,7 +13,7 @@ English | [简体中文](docs/README.zh.md)
 - Bearer-token authentication with PBKDF2-SHA256 password hashes
 - System-level user roles: `admin` and `user`
 - Category collaboration permissions: `view` and `edit`
-- A default `admin` account with a one-time random password
+- A one-time API for provisioning the initial `admin` account
 - Every TODO belongs to a user; uncategorized TODOs remain private
 - Categories, tags, scheduled time points, and time ranges
 - SQLite with WAL mode, foreign-key enforcement, and a 30-second busy timeout
@@ -40,7 +40,18 @@ The server listens on `http://127.0.0.1:8000` by default.
 - TODO endpoints: `/api/v1/todos`
 - Category endpoints: `/api/v1/categories`
 
-On the first startup of a new database, the generated password for the default `admin` account is written once to standard error. Store it securely: it is never persisted in plaintext and is not shown again.
+On a new deployment, create the initial administrator by calling the one-time bootstrap endpoint before exposing the service publicly:
+
+```http
+POST /api/v1/users/bootstrap-admin
+Content-Type: application/json
+
+{"id":"admin","nickname":"Administrator","password":"choose-a-strong-password","role":"admin"}
+```
+
+After a successful call, the endpoint is permanently closed and returns `403` on later requests. Existing deployments that already have an admin account are also treated as initialized.
+
+Use `GET /api/v1/setup/status` to check whether an admin has been provisioned. It returns only `{"admin_provisioned": true|false}` and does not disclose any account details.
 
 ## Configuration
 
@@ -71,7 +82,7 @@ Content-Type: application/json
 Authorization: Bearer <access_token>
 ```
 
-Newly registered users always receive the `user` role. The initial account is created with the `admin` role. Administrative checks use this stored `users.role` value, not a special user ID.
+Newly registered users always receive the `user` role. The one-time bootstrap endpoint only accepts `role: "admin"`. Administrative checks use this stored `users.role` value, not a special user ID.
 
 ## Category Collaboration
 
@@ -99,6 +110,8 @@ The TODO owner can always work with their own TODO. A TODO without a category is
 | Method | Path | Access |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Public |
+| `GET` | `/api/v1/setup/status` | Public setup status; does not disclose account details |
+| `POST` | `/api/v1/users/bootstrap-admin` | Public, once before an admin exists |
 | `POST` | `/api/v1/users/register` | Public when registration is enabled |
 | `POST` | `/api/v1/auth/login` | Public |
 | `POST` | `/api/v1/auth/logout` | Bearer token holder |

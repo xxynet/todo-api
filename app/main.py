@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
-import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
+from app.api.setup import router as setup_router
 from app.api.todos import router as todos_router
 from app.api.users import router as users_router
 from app.config import get_settings
@@ -16,12 +16,7 @@ from app.database import initialize_database
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    admin_password = initialize_database()
-    if admin_password is not None:
-        sys.stderr.write(
-            "Created default user 'admin'. Store this one-time generated password securely: "
-            f"{admin_password}\n"
-        )
+    initialize_database()
     yield
 
 
@@ -35,6 +30,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(setup_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(categories_router, prefix="/api/v1")
 app.include_router(todos_router, prefix="/api/v1")

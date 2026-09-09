@@ -55,6 +55,14 @@ class UserCreate(BaseModel):
         return normalize_required_text(value, "nickname")
 
 
+class AdminBootstrapCreate(UserCreate):
+    role: Literal["admin"]
+
+
+class SetupStatusRead(BaseModel):
+    admin_provisioned: bool
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
