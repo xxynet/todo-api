@@ -55,6 +55,18 @@ class UserCreate(BaseModel):
         return normalize_required_text(value, "nickname")
 
 
+class UserUpdate(BaseModel):
+    nickname: str | None = Field(default=None, min_length=1, max_length=100)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+    @field_validator("nickname")
+    @classmethod
+    def normalize_nickname(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return normalize_required_text(value, "nickname")
+
+
 class AdminBootstrapCreate(UserCreate):
     role: Literal["admin"]
 

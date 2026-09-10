@@ -116,6 +116,7 @@ The TODO owner can always work with their own TODO. A TODO without a category is
 | `POST` | `/api/v1/auth/login` | Public |
 | `POST` | `/api/v1/auth/logout` | Bearer token holder |
 | `GET` | `/api/v1/users/me` | Authenticated user |
+| `PATCH` | `/api/v1/users/me` | Update the authenticated user's nickname and/or password |
 | `GET` | `/api/v1/users/{user_id}` | Public user profile |
 | `POST` | `/api/v1/categories` | Admin |
 | `GET` | `/api/v1/categories` | Admin or permitted user |

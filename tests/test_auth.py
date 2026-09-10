@@ -84,3 +84,29 @@ def test_cors_preflight_allows_frontend_authorization_header(client: TestClient)
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "*"
     assert "Authorization" in response.headers["access-control-allow-headers"]
+
+def test_current_user_can_update_nickname_and_password(client: TestClient) -> None:
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"user_id": "admin", "password": TEST_ADMIN_PASSWORD},
+    )
+    headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    response = client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"nickname": "Renamed Admin", "password": "new-admin-password-123"},
+    )
+    assert response.status_code == 200
+    assert response.json()["nickname"] == "Renamed Admin"
+    assert response.json()["role"] == "admin"
+
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"user_id": "admin", "password": "new-admin-password-123"},
+    ).status_code == 200
+
+
+def test_current_user_profile_update_requires_authentication(client: TestClient) -> None:
+    response = client.patch("/api/v1/users/me", json={"nickname": "Unauthorised"})
+    assert response.status_code == 401

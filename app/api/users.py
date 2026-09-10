@@ -9,7 +9,7 @@ from app.api.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
 from app.models import AdminBootstrap, User
-from app.schemas import AdminBootstrapCreate, UserCreate, UserRead
+from app.schemas import AdminBootstrapCreate, UserCreate, UserRead, UserUpdate
 from app.security import hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -76,6 +76,21 @@ def register_user(payload: UserCreate, db: DbSession) -> User:
 def get_current_user_profile(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     return current_user
 
+
+@router.patch("/me", response_model=UserRead)
+def update_current_user_profile(
+    payload: UserUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: DbSession,
+) -> User:
+    changes = payload.model_dump(exclude_unset=True)
+    if "nickname" in changes:
+        current_user.nickname = changes["nickname"]
+    if "password" in changes:
+        current_user.password_hash = hash_password(changes["password"])
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 
 @router.get("/{user_id}", response_model=UserRead)
 def get_user(user_id: str, db: DbSession) -> User:
