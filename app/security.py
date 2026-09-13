@@ -34,5 +34,5 @@ def verify_password(password: str, stored_password_hash: str) -> bool:
     return hmac.compare_digest(actual_hash, expected_hash)
 
 
-def hash_access_token(token: str) -> str:
+def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

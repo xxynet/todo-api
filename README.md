@@ -64,12 +64,13 @@ Configuration is loaded from environment variables or a local `.env` file.
 | `PORT` | `8000` | Local port used when starting with `uv run python -m app` |
 | `ALLOW_REGISTRATION` | `true` | Whether new users may register |
 | `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer access-token lifetime in minutes |
+| `REFRESH_TOKEN_TTL_DAYS` | `30` | Refresh-token lifetime in days |
 
 Set `ALLOW_REGISTRATION=false` to prevent new registrations while keeping existing users available.
 
 ## Authentication and Roles
 
-All category and TODO endpoints require Bearer authentication. Obtain a short-lived access token through `POST /api/v1/auth/login`, then send it with each request. `POST /api/v1/users/register` remains public when registration is enabled.
+All category and TODO endpoints require Bearer authentication. Obtain a short-lived access token (with a paired long-lived refresh token) through `POST /api/v1/auth/login`, then send it with each request. When the access token expires, `POST /api/v1/auth/refresh` rotates the refresh token and returns a new token pair; refresh tokens are single-use. `POST /api/v1/auth/logout` revokes the current access token and its paired refresh token. `POST /api/v1/users/register` remains public when registration is enabled.
 
 ```http
 POST /api/v1/auth/login
@@ -114,6 +115,7 @@ The TODO owner can always work with their own TODO. A TODO without a category is
 | `POST` | `/api/v1/users/bootstrap-admin` | Public, once before an admin exists |
 | `POST` | `/api/v1/users/register` | Public when registration is enabled |
 | `POST` | `/api/v1/auth/login` | Public |
+| `POST` | `/api/v1/auth/refresh` | Public; requires a valid refresh token |
 | `POST` | `/api/v1/auth/logout` | Bearer token holder |
 | `GET` | `/api/v1/users/me` | Authenticated user |
 | `PATCH` | `/api/v1/users/me` | Update the authenticated user's nickname and/or password |

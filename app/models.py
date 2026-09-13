@@ -34,6 +34,9 @@ class User(Base):
     access_tokens: Mapped[list["AccessToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class AccessToken(Base):
@@ -42,9 +45,22 @@ class AccessToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    # 签发时配对的刷新令牌哈希；登出时据此吊销同会话的刷新令牌
+    refresh_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="access_tokens")
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User] = relationship(back_populates="refresh_tokens")
 
 
 class AdminBootstrap(Base):

@@ -1,6 +1,19 @@
+import time
+
 from fastapi.testclient import TestClient
 
+from app.models import AccessToken, RefreshToken
+from app.security import hash_token
 from tests.conftest import TEST_ADMIN_PASSWORD
+
+
+def login(client: TestClient, password: str = TEST_ADMIN_PASSWORD) -> dict:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"user_id": "admin", "password": password},
+    )
+    assert response.status_code == 200
+    return response.json()
 
 
 def test_login_bearer_access_and_logout(client: TestClient) -> None:
@@ -109,4 +122,74 @@ def test_current_user_can_update_nickname_and_password(client: TestClient) -> No
 
 def test_current_user_profile_update_requires_authentication(client: TestClient) -> None:
     response = client.patch("/api/v1/users/me", json={"nickname": "Unauthorised"})
+    assert response.status_code == 401
+
+
+def test_login_issues_refresh_token_pair(client: TestClient) -> None:
+    payload = login(client)
+    assert payload["refresh_token"]
+    assert payload["refresh_expires_at"]
+    assert payload["refresh_expires_at"] > payload["expires_at"]
+
+
+def test_refresh_rotates_token_pair(client: TestClient) -> None:
+    payload = login(client)
+
+    refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": payload["refresh_token"]})
+    assert refreshed.status_code == 200
+    body = refreshed.json()
+    assert body["access_token"] != payload["access_token"]
+    assert body["refresh_token"] != payload["refresh_token"]
+    assert body["user"]["id"] == "admin"
+
+    headers = {"Authorization": f"Bearer {body['access_token']}"}
+    assert client.get("/api/v1/users/me", headers=headers).status_code == 200
+
+    # 旧刷新令牌一次性使用后作废
+    replay = client.post("/api/v1/auth/refresh", json={"refresh_token": payload["refresh_token"]})
+    assert replay.status_code == 401
+    assert replay.headers["www-authenticate"] == "Bearer"
+
+
+def test_refresh_rejects_unknown_refresh_token(client: TestClient) -> None:
+    response = client.post("/api/v1/auth/refresh", json={"refresh_token": "not-a-real-token"})
+    assert response.status_code == 401
+
+
+def test_refresh_rejects_expired_refresh_token(client: TestClient, test_db) -> None:
+    payload = login(client)
+    with test_db() as session:
+        stored = session.get(RefreshToken, hash_token(payload["refresh_token"]))
+        assert stored is not None
+        stored.expires_at = int(time.time()) - 10
+        session.commit()
+
+    response = client.post("/api/v1/auth/refresh", json={"refresh_token": payload["refresh_token"]})
+    assert response.status_code == 401
+
+
+def test_expired_access_token_is_recovered_via_refresh(client: TestClient, test_db) -> None:
+    payload = login(client)
+    with test_db() as session:
+        stored = session.get(AccessToken, hash_token(payload["access_token"]))
+        assert stored is not None
+        stored.expires_at = int(time.time()) - 10
+        session.commit()
+
+    expired_headers = {"Authorization": f"Bearer {payload['access_token']}"}
+    assert client.get("/api/v1/users/me", headers=expired_headers).status_code == 401
+
+    refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": payload["refresh_token"]})
+    assert refreshed.status_code == 200
+    new_headers = {"Authorization": f"Bearer {refreshed.json()['access_token']}"}
+    assert client.get("/api/v1/users/me", headers=new_headers).status_code == 200
+
+
+def test_logout_revokes_paired_refresh_token(client: TestClient) -> None:
+    payload = login(client)
+    headers = {"Authorization": f"Bearer {payload['access_token']}"}
+
+    assert client.post("/api/v1/auth/logout", headers=headers).status_code == 204
+
+    response = client.post("/api/v1/auth/refresh", json={"refresh_token": payload["refresh_token"]})
     assert response.status_code == 401

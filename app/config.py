@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     allow_registration: bool = True
     access_token_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+    refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
     cors_origins: str = "*"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

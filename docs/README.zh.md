@@ -64,12 +64,13 @@ Content-Type: application/json
 | `PORT` | `8000` | 使用 `uv run python -m app` 启动时监听的本地端口 |
 | `ALLOW_REGISTRATION` | `true` | 是否允许新用户注册 |
 | `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer 访问令牌的有效期（分钟） |
+| `REFRESH_TOKEN_TTL_DAYS` | `30` | 刷新令牌的有效期（天） |
 
 设置 `ALLOW_REGISTRATION=false` 可禁止新的注册，但不会影响已有用户。
 
 ## 认证与角色
 
-所有分类和 TODO 接口均需要 Bearer 认证。先通过 `POST /api/v1/auth/login` 获取短期访问令牌，再在每次请求中携带。`POST /api/v1/users/register` 在注册开启时保持公开。
+所有分类和 TODO 接口均需要 Bearer 认证。先通过 `POST /api/v1/auth/login` 获取短期访问令牌（同时返回配对的长效刷新令牌），再在每次请求中携带。访问令牌过期后，用 `POST /api/v1/auth/refresh` 轮换刷新令牌并换发新的令牌对；刷新令牌一次性使用。`POST /api/v1/auth/logout` 会吊销当前访问令牌及其配对的刷新令牌。`POST /api/v1/users/register` 在注册开启时保持公开。
 
 ```http
 POST /api/v1/auth/login
@@ -114,6 +115,7 @@ TODO 的原始创建者始终可以操作自己的 TODO。没有分类的 TODO �
 | `POST` | `/api/v1/users/bootstrap-admin` | 公开，仅可在尚未存在管理员时调用一次 |
 | `POST` | `/api/v1/users/register` | 开启注册时公开 |
 | `POST` | `/api/v1/auth/login` | 公开 |
+| `POST` | `/api/v1/auth/refresh` | 公开，需提供有效的刷新令牌 |
 | `POST` | `/api/v1/auth/logout` | 持有 Bearer Token 的用户 |
 | `GET` | `/api/v1/users/me` | 已认证用户 |
 | `PATCH` | `/api/v1/users/me` | 更新当前用户的昵称和/或密码 |

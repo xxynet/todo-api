@@ -15,7 +15,7 @@ TEST_ADMIN_PASSWORD = "admin-password-123"
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> Generator[TestClient, None, None]:
+def test_db(tmp_path: Path) -> Generator[sessionmaker[Session], None, None]:
     database_path = tmp_path / "test.db"
     test_engine = create_engine(
         f"sqlite:///{database_path.as_posix()}",
@@ -31,8 +31,14 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
     with test_session() as session:
         assert session.get(User, "admin") is None
 
+    yield test_session
+    test_engine.dispose()
+
+
+@pytest.fixture
+def client(test_db: sessionmaker[Session]) -> Generator[TestClient, None, None]:
     def override_get_db() -> Generator[Session, None, None]:
-        with test_session() as session:
+        with test_db() as session:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -51,4 +57,3 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
         assert response.json()["role"] == "admin"
         yield test_client
     app.dependency_overrides.clear()
-    test_engine.dispose()

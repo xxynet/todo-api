@@ -90,11 +90,17 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
-class AccessTokenRead(BaseModel):
+class TokenPairRead(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     expires_at: datetime
+    refresh_token: str
+    refresh_expires_at: datetime
     user: UserRead
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1, max_length=255)
 
 
 class CategoryCreate(BaseModel):
