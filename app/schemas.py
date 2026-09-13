@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -83,6 +83,15 @@ class UserRead(BaseModel):
     role: Literal["admin", "user"]
     created_at: datetime
     updated_at: datetime
+
+
+class ActivityDayRead(BaseModel):
+    date: date
+    count: int
+
+
+class UserActivityRead(BaseModel):
+    days: list[ActivityDayRead]
 
 
 class LoginRequest(BaseModel):

@@ -119,6 +119,7 @@ TODO 的原始创建者始终可以操作自己的 TODO。没有分类的 TODO �
 | `POST` | `/api/v1/auth/logout` | 持有 Bearer Token 的用户 |
 | `GET` | `/api/v1/users/me` | 已认证用户 |
 | `PATCH` | `/api/v1/users/me` | 更新当前用户的昵称和/或密码 |
+| `GET` | `/api/v1/users/me/activity` | 已认证用户；近一年每日新建待办数（查询参数：`days`、`tz`） |
 | `GET` | `/api/v1/users/{user_id}` | 用户公开资料 |
 | `POST` | `/api/v1/categories` | 管理员 |
 | `GET` | `/api/v1/categories` | 管理员或获授权用户 |
