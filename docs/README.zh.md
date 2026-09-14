@@ -54,7 +54,7 @@ uv run python -m app
 docker compose up --build -d
 ```
 
-服务将运行于 `http://127.0.0.1:5236`。使用 `docker compose logs -f` 查看日志，使用 `docker compose down` 停止服务。SQLite 数据保存在命名卷 `todo-data` 中，重建容器后仍会保留。可选前端以只读方式从 `data/dist` 挂载；请在启动 Compose 前先构建并复制前端文件。若不存在 `data/dist/index.html`，容器只提供 API。
+服务将运行于 `http://127.0.0.1:5236`。使用 `docker compose logs -f` 查看日志，使用 `docker compose down` 停止服务。SQLite 数据库直接保存在 Compose 文件同级的 `data/data.db` 中，重建容器后仍会保留。可选前端从 `data/dist` 提供；请在启动 Compose 前先构建并复制前端文件。若不存在 `data/dist/index.html`，容器只提供 API。
 
 新部署首次启动后，应在服务对公网开放前调用一次性初始化接口来创建管理员：
 

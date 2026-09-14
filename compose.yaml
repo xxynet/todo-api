@@ -9,11 +9,7 @@ services:
       PORT: 5236
       DATABASE_URL: sqlite:////app/data/data.db
       SERVE_FRONTEND: "true"
-      FRONTEND_DIST_DIR: /app/frontend
+      FRONTEND_DIST_DIR: /app/data/dist
     volumes:
-      - todo-data:/app/data
-      - ./data/dist:/app/frontend:ro
+      - ./data:/app/data
     restart: unless-stopped
-
-volumes:
-  todo-data:

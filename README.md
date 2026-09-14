@@ -54,7 +54,7 @@ With [Docker Compose](https://docs.docker.com/compose/) installed, run:
 docker compose up --build -d
 ```
 
-The service is available at `http://127.0.0.1:5236`; use `docker compose logs -f` to inspect logs and `docker compose down` to stop it. SQLite data is stored in the named `todo-data` volume and survives container recreation. The optional frontend is mounted read-only from `data/dist`, so build and copy it there before starting Compose. If `data/dist/index.html` is absent, the container exposes only the API.
+The service is available at `http://127.0.0.1:5236`; use `docker compose logs -f` to inspect logs and `docker compose down` to stop it. SQLite data is stored directly in `data/data.db` beside the Compose file and survives container recreation. The optional frontend is served from `data/dist`, so build and copy it there before starting Compose. If `data/dist/index.html` is absent, the container exposes only the API.
 
 On a new deployment, create the initial administrator by calling the one-time bootstrap endpoint before exposing the service publicly:
 
