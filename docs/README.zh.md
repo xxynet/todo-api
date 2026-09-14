@@ -40,6 +40,12 @@ uv run python -m app
 - TODO 接口：`/api/v1/todos`
 - 分类接口：`/api/v1/categories`
 
+### 可选托管前端
+
+当 `data/dist/index.html` 存在时，API 会自动托管已构建的前端。
+
+前端随后可通过 `http://127.0.0.1:8000/` 访问。客户端路由会回退至 `index.html`，但缺失的静态资源仍返回 `404`；API 路由和 Swagger UI 保持原有路径。设置 `SERVE_FRONTEND=false` 可禁用托管，或设置 `FRONTEND_DIST_DIR` 使用其他构建目录。
+
 新部署首次启动后，应在服务对公网开放前调用一次性初始化接口来创建管理员：
 
 ```http
@@ -65,6 +71,8 @@ Content-Type: application/json
 | `ALLOW_REGISTRATION` | `true` | 是否允许新用户注册 |
 | `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer 访问令牌的有效期（分钟） |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | 刷新令牌的有效期（天） |
+| `SERVE_FRONTEND` | `true` | 当配置目录包含 `index.html` 时是否托管前端构建产物 |
+| `FRONTEND_DIST_DIR` | `data/dist` | 前端构建产物所在目录 |
 
 设置 `ALLOW_REGISTRATION=false` 可禁止新的注册，但不会影响已有用户。
 

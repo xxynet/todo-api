@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,8 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
     cors_origins: str = "*"
+    serve_frontend: bool = True
+    frontend_dist_dir: Path = Path("data/dist")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

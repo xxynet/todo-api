@@ -40,6 +40,12 @@ The server listens on `http://127.0.0.1:8000` by default.
 - TODO endpoints: `/api/v1/todos`
 - Category endpoints: `/api/v1/categories`
 
+### Optional frontend hosting
+
+The API serves a built frontend automatically when `data/dist/index.html` exists.
+
+The frontend is then available at `http://127.0.0.1:8000/`. Client-side routes fall back to `index.html`; missing static assets still return `404`. API routes and Swagger UI keep their existing paths. Set `SERVE_FRONTEND=false` to disable hosting, or set `FRONTEND_DIST_DIR` to use a different build directory.
+
 On a new deployment, create the initial administrator by calling the one-time bootstrap endpoint before exposing the service publicly:
 
 ```http
@@ -65,6 +71,8 @@ Configuration is loaded from environment variables or a local `.env` file.
 | `ALLOW_REGISTRATION` | `true` | Whether new users may register |
 | `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer access-token lifetime in minutes |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | Refresh-token lifetime in days |
+| `SERVE_FRONTEND` | `true` | Serve a frontend build when the configured directory contains `index.html` |
+| `FRONTEND_DIST_DIR` | `data/dist` | Directory containing the frontend build |
 
 Set `ALLOW_REGISTRATION=false` to prevent new registrations while keeping existing users available.
 
