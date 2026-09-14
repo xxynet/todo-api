@@ -8,7 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "TODO API"
     database_url: str = "sqlite:///./data/data.db"
-    port: int = Field(default=8000, ge=1, le=65535)
+    host: str = "127.0.0.1"
+    port: int = Field(default=5236, ge=1, le=65535)
     allow_registration: bool = True
     access_token_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)

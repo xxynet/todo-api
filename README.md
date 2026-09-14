@@ -32,9 +32,9 @@ Copy-Item .env.example .env
 uv run python -m app
 ```
 
-The server listens on `http://127.0.0.1:8000` by default.
+The server listens on `http://127.0.0.1:5236` by default.
 
-- Swagger UI: `http://127.0.0.1:8000/docs`
+- Swagger UI: `http://127.0.0.1:5236/docs`
 - Health check: `GET /api/v1/health`
 - User endpoints: `/api/v1/users`
 - TODO endpoints: `/api/v1/todos`
@@ -44,7 +44,17 @@ The server listens on `http://127.0.0.1:8000` by default.
 
 The API serves a built frontend automatically when `data/dist/index.html` exists.
 
-The frontend is then available at `http://127.0.0.1:8000/`. Client-side routes fall back to `index.html`; missing static assets still return `404`. API routes and Swagger UI keep their existing paths. Set `SERVE_FRONTEND=false` to disable hosting, or set `FRONTEND_DIST_DIR` to use a different build directory.
+The frontend is then available at `http://127.0.0.1:5236/`. Client-side routes fall back to `index.html`; missing static assets still return `404`. API routes and Swagger UI keep their existing paths. Set `SERVE_FRONTEND=false` to disable hosting, or set `FRONTEND_DIST_DIR` to use a different build directory.
+
+## Docker deployment
+
+With [Docker Compose](https://docs.docker.com/compose/) installed, run:
+
+```powershell
+docker compose up --build -d
+```
+
+The service is available at `http://127.0.0.1:5236`; use `docker compose logs -f` to inspect logs and `docker compose down` to stop it. SQLite data is stored in the named `todo-data` volume and survives container recreation. The optional frontend is mounted read-only from `data/dist`, so build and copy it there before starting Compose. If `data/dist/index.html` is absent, the container exposes only the API.
 
 On a new deployment, create the initial administrator by calling the one-time bootstrap endpoint before exposing the service publicly:
 
@@ -67,7 +77,8 @@ Configuration is loaded from environment variables or a local `.env` file.
 | --- | --- | --- |
 | `APP_NAME` | `TODO API` | Application name shown in the generated API documentation |
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy database connection URL |
-| `PORT` | `8000` | Local port used when starting with `uv run python -m app` |
+| `HOST` | `127.0.0.1` | Network interface used by the local launcher; Docker sets this to `0.0.0.0` |
+| `PORT` | `5236` | Local port used when starting with `uv run python -m app` |
 | `ALLOW_REGISTRATION` | `true` | Whether new users may register |
 | `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer access-token lifetime in minutes |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | Refresh-token lifetime in days |

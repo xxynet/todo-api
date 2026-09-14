@@ -32,9 +32,9 @@ Copy-Item .env.example .env
 uv run python -m app
 ```
 
-服务默认监听 `http://127.0.0.1:8000`。
+服务默认监听 `http://127.0.0.1:5236`。
 
-- Swagger UI：`http://127.0.0.1:8000/docs`
+- Swagger UI：`http://127.0.0.1:5236/docs`
 - 健康检查：`GET /api/v1/health`
 - 用户接口：`/api/v1/users`
 - TODO 接口：`/api/v1/todos`
@@ -44,7 +44,17 @@ uv run python -m app
 
 当 `data/dist/index.html` 存在时，API 会自动托管已构建的前端。
 
-前端随后可通过 `http://127.0.0.1:8000/` 访问。客户端路由会回退至 `index.html`，但缺失的静态资源仍返回 `404`；API 路由和 Swagger UI 保持原有路径。设置 `SERVE_FRONTEND=false` 可禁用托管，或设置 `FRONTEND_DIST_DIR` 使用其他构建目录。
+前端随后可通过 `http://127.0.0.1:5236/` 访问。客户端路由会回退至 `index.html`，但缺失的静态资源仍返回 `404`；API 路由和 Swagger UI 保持原有路径。设置 `SERVE_FRONTEND=false` 可禁用托管，或设置 `FRONTEND_DIST_DIR` 使用其他构建目录。
+
+## Docker 部署
+
+安装 [Docker Compose](https://docs.docker.com/compose/) 后，执行：
+
+```powershell
+docker compose up --build -d
+```
+
+服务将运行于 `http://127.0.0.1:5236`。使用 `docker compose logs -f` 查看日志，使用 `docker compose down` 停止服务。SQLite 数据保存在命名卷 `todo-data` 中，重建容器后仍会保留。可选前端以只读方式从 `data/dist` 挂载；请在启动 Compose 前先构建并复制前端文件。若不存在 `data/dist/index.html`，容器只提供 API。
 
 新部署首次启动后，应在服务对公网开放前调用一次性初始化接口来创建管理员：
 
@@ -67,7 +77,8 @@ Content-Type: application/json
 | --- | --- | --- |
 | `APP_NAME` | `TODO API` | 显示在自动生成 API 文档中的应用名称 |
 | `DATABASE_URL` | `sqlite:///./data/data.db` | SQLAlchemy 数据库连接地址 |
-| `PORT` | `8000` | 使用 `uv run python -m app` 启动时监听的本地端口 |
+| `HOST` | `127.0.0.1` | 本地启动器绑定的网络地址；Docker 中设为 `0.0.0.0` |
+| `PORT` | `5236` | 使用 `uv run python -m app` 启动时监听的本地端口 |
 | `ALLOW_REGISTRATION` | `true` | 是否允许新用户注册 |
 | `ACCESS_TOKEN_TTL_MINUTES` | `30` | Bearer 访问令牌的有效期（分钟） |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | 刷新令牌的有效期（天） |

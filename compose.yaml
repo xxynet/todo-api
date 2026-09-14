@@ -1,0 +1,19 @@
+services:
+  todo-api:
+    build:
+      context: .
+    ports:
+      - "${PORT:-5236}:5236"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5236
+      DATABASE_URL: sqlite:////app/data/data.db
+      SERVE_FRONTEND: "true"
+      FRONTEND_DIST_DIR: /app/frontend
+    volumes:
+      - todo-data:/app/data
+      - ./data/dist:/app/frontend:ro
+    restart: unless-stopped
+
+volumes:
+  todo-data:
